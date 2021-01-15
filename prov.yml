@@ -1,0 +1,85 @@
+# https://github.com/guard/listen/wiki/Increasing-the-amount-of-inotify-watchers
+---
+- hosts: default
+  become: true
+
+  tasks:
+    -
+      name: add postgresql repository
+      shell: sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/postgresql.list' && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+      args:
+        creates: /etc/apt/sources.list.d/postgresql.list
+
+    -
+      name: apt-get update
+      apt: update_cache=yes cache_valid_time=360000
+    -
+      name: update locale
+      command: update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 LANGUAGE=en_US.UTF-8
+
+    -
+      name: install packages
+      apt:
+        pkg:
+          - curl
+          - vim
+          - tree
+          - libpq-dev
+          - build-essential
+          - postgresql-12
+          - htop
+        state: present
+
+    - name: disable postgresql
+      shell: systemctl stop postgresql && systemctl disable postgresql
+
+    - name: copy docker dep files to dest
+      copy:
+        src: "{{ item }}"
+        dest: "/tmp/{{ item }}"
+      with_items:
+        - containerd.io_1.2.6-3_amd64.deb
+        - docker-ce_19.03.8_3-0_ubuntu-xenial_amd64.deb
+        - docker-ce-cli_19.03.8_3-0_ubuntu-xenial_amd64.deb
+
+    - name: install docker
+      shell: "dpkg -i {{ item }}"
+      with_items:
+        - /tmp/containerd.io_1.2.6-3_amd64.deb
+        - /tmp/docker-ce_19.03.8_3-0_ubuntu-xenial_amd64.deb
+        - /tmp/docker-ce-cli_19.03.8_3-0_ubuntu-xenial_amd64.deb
+      args:
+        creates: /usr/bin/docker
+
+    - name: install docker-compose
+      shell: curl -L "https://github.com/docker/compose/releases/download/1.25.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose && chown vagrant /usr/local/bin/docker-compose
+      args:
+        creates: /usr/local/bin/docker-compose
+
+    - name: docker without sudo
+      shell: usermod -aG docker vagrant
+
+    - name: copy bash aliases to dest
+      copy:
+        src: bash_user_profile
+        dest: /home/vagrant/.bash_user_profile
+
+    - name: copy ssh files
+      copy:
+        src: '/Users/benj/.ssh/{{ item }}'
+        dest: '/home/vagrant/.ssh/{{ item }}'
+        owner: vagrant
+      with_items:
+        - id_rsa
+        - id_rsa.pub
+
+    - name: bash aliases
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        line: "source /home/vagrant/.bash_user_profile"
+        state: present
+
+    - name: openshift client
+      shell: curl -L  https://github.com/openshift/origin/releases/download/v1.3.2/openshift-origin-client-tools-v1.3.2-ac1d579-linux-64bit.tar.gz | tar -xz && cp openshift-origin-client-tools-*/oc /usr/local/bin/.
+      args:
+        creates: /usr/local/bin/oc

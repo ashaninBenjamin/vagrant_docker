@@ -1,0 +1,12 @@
+alias dc='docker-compose'
+alias dcs='docker-compose start'
+alias dcr='docker-compose run --rm'
+alias dca="docker attach --sig-proxy=false"
+alias dcwb="docker-compose exec web bash"
+alias dcab="docker-compose exec app bash"
+
+alias alw='sudo chown -R $USER .'
+alias ixc='iex -S mix'
+alias mxr='mix run'
+
+cd /job
